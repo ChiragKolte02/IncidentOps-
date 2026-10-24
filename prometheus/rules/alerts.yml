@@ -1,0 +1,88 @@
+groups:
+
+  - name: unix-server-alerts
+    rules:
+
+      # CPU → cAdvisor
+      - alert: HighCPUUsage
+        expr: 100 * sum(rate(container_cpu_usage_seconds_total{name="incidentops-unix-server"}[1m])) / 12 > 85
+        for: 30s
+        labels:
+          severity: critical
+          team: unix
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage on Unix server has been above 85% for more than 30 seconds."
+
+      # Memory → node_exporter
+      - alert: HighMemoryUsage
+        expr: 100 * (1 - (node_memory_MemAvailable_bytes{instance="unix-server:9100"} / node_memory_MemTotal_bytes{instance="unix-server:9100"})) > 85
+        for: 30s
+        labels:
+          severity: critical
+          team: unix
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage on {{ $labels.instance }} has been above 85% for more than 30 seconds."
+
+      # Disk → node_exporter
+      - alert: LowDiskSpace
+        expr: 100 * (node_filesystem_avail_bytes{instance="unix-server:9100",fstype!~"tmpfs|overlay",mountpoint="/"} / node_filesystem_size_bytes{instance="unix-server:9100",fstype!~"tmpfs|overlay",mountpoint="/"}) < 15
+        for: 30s
+        labels:
+          severity: critical
+          team: unix
+        annotations:
+          summary: "Low disk space detected"
+          description: "Available disk space on {{ $labels.instance }} is below 15%."
+
+      # Load Average → node_exporter
+      - alert: HighLoadAverage
+        expr: node_load1{instance="unix-server:9100"} > count by (instance) (node_cpu_seconds_total{instance="unix-server:9100",mode="idle"})
+        for: 30s
+        labels:
+          severity: warning
+          team: unix
+        annotations:
+          summary: "High system load detected"
+          description: "System load on {{ $labels.instance }} is higher than the available CPU capacity."
+
+
+  # =========================
+  # DB SERVER ALERTS
+  # =========================
+  - name: db-server-alerts
+    rules:
+
+      # CPU → cAdvisor
+      - alert: DBHighCPUUsage
+        expr: 100 * sum(rate(container_cpu_usage_seconds_total{name="incidentops-db-server"}[1m])) / 12 > 85
+        for: 30s
+        labels:
+          severity: warning
+          team: dba
+        annotations:
+          summary: "High CPU usage on DB server"
+          description: "CPU usage on DB server has been above 85% for more than 30 seconds."
+
+      # Memory → node_exporter
+      - alert: DBHighMemoryUsage
+        expr: 100 * (1 - (node_memory_MemAvailable_bytes{instance="db-server:9100"} / node_memory_MemTotal_bytes{instance="db-server:9100"})) > 85
+        for: 30s
+        labels:
+          severity: critical
+          team: dba
+        annotations:
+          summary: "High memory usage on DB server"
+          description: "Memory usage on DB server {{ $labels.instance }} has been above 85% for more than 30 seconds."
+
+      # Disk → node_exporter
+      - alert: DBLowDiskSpace
+        expr: 100 * (node_filesystem_avail_bytes{instance="db-server:9100",fstype!~"tmpfs|overlay",mountpoint="/"} / node_filesystem_size_bytes{instance="db-server:9100",fstype!~"tmpfs|overlay",mountpoint="/"}) < 15
+        for: 30s
+        labels:
+          severity: critical
+          team: dba
+        annotations:
+          summary: "Low disk space on DB server"
+          description: "Available disk space on DB server {{ $labels.instance }} is below 15%."

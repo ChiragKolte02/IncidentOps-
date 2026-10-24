@@ -1,0 +1,28 @@
+{
+  "receiver": "incidentops",
+  "status": "firing",
+  "alerts": [
+    {
+      "status": "firing",
+      "labels": {
+        "alertname": "HighCPUUsage",
+        "instance": "unix-server:9100",
+        "severity": "critical",
+        "team": "unix"
+      },
+      "annotations": {
+        "summary": "High CPU usage detected",
+        "description": "CPU usage on unix-server is above 85 percent again."
+      },
+      "startsAt": "2026-09-12T07:10:00Z",
+      "endsAt": "0001-01-01T00:00:00Z",
+      "generatorURL": "http://prometheus:9090",
+      "fingerprint": "test-highcpu-002"
+    }
+  ],
+  "commonLabels": {},
+  "commonAnnotations": {},
+  "externalURL": "http://alertmanager:9093",
+  "version": "4",
+  "groupKey": "test-highcpu-group-002"
+}
