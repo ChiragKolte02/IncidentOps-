@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
 import java.time.Instant;
 
 @Entity
@@ -42,10 +43,15 @@ public class Incident {
     private Long ownerUserId;
 
     private String ownerUsername;
-    
+
     @Column(name = "opened_at")
     private Instant openedAt;
 
     @Column(name = "resolved_at")
     private Instant resolvedAt;
+
+    // Exact firing alert that created this incident.
+    // Nullable for incidents created before this feature.
+    @Column(name = "source_alert_id")
+    private Long sourceAlertId;
 }

@@ -1,3 +1,4 @@
+
 groups:
 
   - name: unix-server-alerts
@@ -10,6 +11,7 @@ groups:
         labels:
           severity: critical
           team: unix
+          instance: unix-server:9100
         annotations:
           summary: "High CPU usage detected"
           description: "CPU usage on Unix server has been above 85% for more than 30 seconds."
@@ -47,10 +49,10 @@ groups:
           summary: "High system load detected"
           description: "System load on {{ $labels.instance }} is higher than the available CPU capacity."
 
-
   # =========================
   # DB SERVER ALERTS
   # =========================
+
   - name: db-server-alerts
     rules:
 
@@ -61,6 +63,7 @@ groups:
         labels:
           severity: warning
           team: dba
+          instance: db-server:9100
         annotations:
           summary: "High CPU usage on DB server"
           description: "CPU usage on DB server has been above 85% for more than 30 seconds."

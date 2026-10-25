@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import incidentService from '../../services/incidentService'
 import alertService from '../../services/alertService'
+import AiInvestigationReport from './AiInvestigationReport'
 
 function toArray(data) {
   if (Array.isArray(data)) return data
@@ -56,7 +57,9 @@ function StatusLabel({ value }) {
 function DataTable({ columns, rows, emptyMessage }) {
   if (!rows.length) {
     return (
-      <p className="py-6 text-sm text-slate-400">{emptyMessage}</p>
+      <p className="py-6 text-sm text-slate-400">
+        {emptyMessage}
+      </p>
     )
   }
 
@@ -66,7 +69,10 @@ function DataTable({ columns, rows, emptyMessage }) {
         <thead className="border-b border-slate-800 text-slate-400">
           <tr>
             {columns.map((column) => (
-              <th key={column.key} className="px-3 py-3 font-medium">
+              <th
+                key={column.key}
+                className="px-3 py-3 font-medium"
+              >
                 {column.label}
               </th>
             ))}
@@ -80,7 +86,10 @@ function DataTable({ columns, rows, emptyMessage }) {
               className="border-b border-slate-800/70 last:border-0"
             >
               {columns.map((column) => (
-                <td key={column.key} className="px-3 py-4 text-slate-300">
+                <td
+                  key={column.key}
+                  className="px-3 py-4 text-slate-300"
+                >
                   {column.render
                     ? column.render(row)
                     : (row[column.key] ?? '—')}
@@ -101,6 +110,7 @@ function getApiError(error, fallback) {
     (typeof error?.response?.data === 'string'
       ? error.response.data
       : null) ??
+    error?.message ??
     fallback
   )
 }
@@ -116,6 +126,11 @@ export default function IncidentWorkspace({
   const [claimingId, setClaimingId] = useState(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+
+  // AI Investigation state
+  const [investigatingId, setInvestigatingId] = useState(null)
+  const [investigation, setInvestigation] = useState(null)
+  const [investigationError, setInvestigationError] = useState('')
 
   const loadData = useCallback(async (manual = false) => {
     if (manual) {
@@ -160,7 +175,9 @@ export default function IncidentWorkspace({
         setError(errors.join(' '))
       }
     } catch {
-      setError('An unexpected error occurred while loading dashboard data.')
+      setError(
+        'An unexpected error occurred while loading dashboard data.'
+      )
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -219,9 +236,10 @@ export default function IncidentWorkspace({
     try {
       await incidentService.claimIncident(id)
 
-      setNotice(`Incident ${displayId(incident)} claimed successfully.`)
+      setNotice(
+        `Incident ${displayId(incident)} claimed successfully.`
+      )
 
-      // Refresh both lists so the latest backend state is shown.
       await loadData(true)
     } catch (err) {
       setError(
@@ -232,6 +250,54 @@ export default function IncidentWorkspace({
       )
     } finally {
       setClaimingId(null)
+    }
+  }
+
+  async function handleInvestigate(incident) {
+    const id = incident?.id
+
+    if (id == null) {
+      setInvestigationError(
+        'This incident has no database ID, so it cannot be investigated.'
+      )
+      return
+    }
+
+    if (investigatingId !== null) return
+
+    setInvestigatingId(id)
+    setInvestigation(null)
+    setInvestigationError('')
+
+    try {
+      const result = await incidentService.investigateIncident(id)
+
+      setInvestigation(result)
+    } catch (err) {
+      const status = err?.response?.status
+
+      if (status === 401) {
+        setInvestigationError(
+          'Your session is not authorized. Please sign in again.'
+        )
+      } else if (status === 403) {
+        setInvestigationError(
+          'You do not have permission to investigate this incident.'
+        )
+      } else if (status === 404) {
+        setInvestigationError(
+          'The incident was not found or is not accessible.'
+        )
+      } else {
+        setInvestigationError(
+          getApiError(
+            err,
+            'AI investigation failed. Check the Incident Service and AI Agent.'
+          )
+        )
+      }
+    } finally {
+      setInvestigatingId(null)
     }
   }
 
@@ -262,6 +328,26 @@ export default function IncidentWorkspace({
         label: 'Team',
         render: (item) => item.team ?? '—',
       },
+      {
+        key: 'investigation',
+        label: 'AI Investigation',
+        render: (item) => {
+          const id = item.id
+
+          return (
+            <button
+              type="button"
+              onClick={() => handleInvestigate(item)}
+              disabled={id == null || investigatingId !== null}
+              className="rounded-lg border border-violet-600 bg-violet-600/10 px-3 py-2 text-xs font-semibold text-violet-300 transition-colors hover:bg-violet-600/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {investigatingId === id
+                ? 'Investigating…'
+                : 'Investigate with AI'}
+            </button>
+          )
+        },
+      },
     ]
 
     if (showClaim) {
@@ -270,6 +356,7 @@ export default function IncidentWorkspace({
         label: 'Action',
         render: (item) => {
           const id = item.id
+
           const canClaim =
             getStatus(item) === 'OPEN' &&
             id != null
@@ -277,7 +364,9 @@ export default function IncidentWorkspace({
           if (!canClaim) {
             return (
               <span className="text-slate-500">
-                {getStatus(item) !== 'OPEN' ? '—' : 'Missing ID'}
+                {getStatus(item) !== 'OPEN'
+                  ? '—'
+                  : 'Missing ID'}
               </span>
             )
           }
@@ -289,7 +378,9 @@ export default function IncidentWorkspace({
               disabled={claimingId !== null}
               className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {claimingId === id ? 'Claiming…' : 'Claim'}
+              {claimingId === id
+                ? 'Claiming…'
+                : 'Claim'}
             </button>
           )
         },
@@ -297,7 +388,7 @@ export default function IncidentWorkspace({
     }
 
     return columns
-  }, [showClaim, claimingId])
+  }, [showClaim, claimingId, investigatingId])
 
   const alertColumns = [
     {
@@ -340,7 +431,9 @@ export default function IncidentWorkspace({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-400">
-          {team === 'ALL' ? 'All teams' : `${team} team`} workspace
+          {team === 'ALL'
+            ? 'All teams'
+            : `${team} team`} workspace
         </p>
 
         <button
@@ -360,6 +453,36 @@ export default function IncidentWorkspace({
         >
           {error}
         </div>
+      )}
+
+      {investigationError && (
+        <div
+          role="alert"
+          className="rounded-lg border border-red-800 bg-red-950/40 p-4 text-sm text-red-300"
+        >
+          {investigationError}
+        </div>
+      )}
+
+      {investigatingId !== null && (
+        <div
+          role="status"
+          className="flex items-center gap-3 rounded-xl border border-violet-800 bg-slate-900 p-4 text-sm text-violet-200"
+        >
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-violet-900 border-t-violet-400" />
+
+          <span>
+            AI is analyzing historical Prometheus metrics
+            and generating an investigation report…
+          </span>
+        </div>
+      )}
+
+      {investigation && (
+        <AiInvestigationReport
+          data={investigation}
+          onClose={() => setInvestigation(null)}
+        />
       )}
 
       {notice && (
@@ -382,8 +505,13 @@ export default function IncidentWorkspace({
             key={label}
             className="rounded-xl border border-slate-800 bg-slate-900 p-5"
           >
-            <p className="text-sm text-slate-400">{label}</p>
-            <p className="mt-2 text-3xl font-bold text-white">{value}</p>
+            <p className="text-sm text-slate-400">
+              {label}
+            </p>
+
+            <p className="mt-2 text-3xl font-bold text-white">
+              {value}
+            </p>
           </div>
         ))}
       </div>
@@ -392,7 +520,10 @@ export default function IncidentWorkspace({
         id="incidents"
         className="scroll-mt-6 rounded-xl border border-slate-800 bg-slate-900 p-5"
       >
-        <h3 className="text-lg font-semibold text-white">Open Incidents</h3>
+        <h3 className="text-lg font-semibold text-white">
+          Open Incidents
+        </h3>
+
         <p className="mt-1 text-sm text-slate-400">
           Review active incidents and claim eligible incidents.
         </p>
@@ -410,7 +541,10 @@ export default function IncidentWorkspace({
         id="all-incidents"
         className="scroll-mt-6 rounded-xl border border-slate-800 bg-slate-900 p-5"
       >
-        <h3 className="text-lg font-semibold text-white">All Incidents</h3>
+        <h3 className="text-lg font-semibold text-white">
+          All Incidents
+        </h3>
+
         <p className="mt-1 text-sm text-slate-400">
           View incident history, including resolved incidents.
         </p>
@@ -428,7 +562,9 @@ export default function IncidentWorkspace({
         id="alerts"
         className="scroll-mt-6 rounded-xl border border-slate-800 bg-slate-900 p-5"
       >
-        <h3 className="text-lg font-semibold text-white">Alert History</h3>
+        <h3 className="text-lg font-semibold text-white">
+          Alert History
+        </h3>
 
         <div className="mt-4">
           <DataTable

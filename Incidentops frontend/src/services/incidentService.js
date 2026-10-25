@@ -30,6 +30,22 @@ const incidentService = {
 
     return response.data
   },
+
+  async investigateIncident(id) {
+    if (id == null || id === '') {
+      throw new Error('A valid incident ID is required for AI investigation.')
+    }
+
+    const response = await incidentApi.post(
+      `/api/incidents/${encodeURIComponent(id)}/investigate`,
+      {},
+      {
+        timeout: 120000,
+      },
+    )
+
+    return response.data
+  },
 }
 
 export default incidentService

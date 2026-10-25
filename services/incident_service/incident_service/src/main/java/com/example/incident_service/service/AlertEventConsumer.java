@@ -1,3 +1,4 @@
+
 package com.example.incident_service.service;
 
 import com.example.incident_service.dto.AlertEvent;
@@ -5,10 +6,11 @@ import com.example.incident_service.entity.Alert;
 import com.example.incident_service.entity.Incident;
 import com.example.incident_service.repository.AlertRepository;
 import com.example.incident_service.repository.IncidentRepository;
+
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Service;
-import java.time.Instant;
 
+import java.time.Instant;
 import java.util.List;
 
 @Service
@@ -19,8 +21,8 @@ public class AlertEventConsumer {
 
     public AlertEventConsumer(
             AlertRepository alertRepository,
-            IncidentRepository incidentRepository) {
-
+            IncidentRepository incidentRepository
+    ) {
         this.alertRepository = alertRepository;
         this.incidentRepository = incidentRepository;
     }
@@ -79,7 +81,7 @@ public class AlertEventConsumer {
                     )
                     .ifPresentOrElse(
 
-                            // Existing OPEN incident
+                            // Existing OPEN or IN_PROGRESS incident
                             existingIncident -> {
 
                                 System.out.println(
@@ -96,7 +98,7 @@ public class AlertEventConsumer {
                                 );
                             },
 
-                            // No OPEN incident
+                            // No active incident: create a new one.
                             () -> {
 
                                 Incident incident = new Incident();
@@ -133,12 +135,24 @@ public class AlertEventConsumer {
 
                                 incident.setOpenedAt(Instant.now());
 
+                                // IMPORTANT:
+                                // Link this incident to the exact
+                                // firing alert saved above.
+                                incident.setSourceAlertId(
+                                        savedAlert.getId()
+                                );
+
                                 Incident savedIncident =
                                         incidentRepository.save(incident);
 
                                 System.out.println(
                                         "NEW INCIDENT CREATED: "
                                                 + savedIncident.getIncidentNumber()
+                                );
+
+                                System.out.println(
+                                        "Source firing alert ID: "
+                                                + savedIncident.getSourceAlertId()
                                 );
                             }
                     );
@@ -160,9 +174,13 @@ public class AlertEventConsumer {
                             existingIncident -> {
 
                                 existingIncident.setStatus("RESOLVED");
-                                existingIncident.setResolvedAt(Instant.now());
+                                existingIncident.setResolvedAt(
+                                        Instant.now()
+                                );
 
-                                incidentRepository.save(existingIncident);
+                                incidentRepository.save(
+                                        existingIncident
+                                );
 
                                 System.out.println(
                                         "Incident RESOLVED: "
@@ -174,7 +192,7 @@ public class AlertEventConsumer {
 
                                 System.out.println(
                                         "Resolved alert received, "
-                                                + "but no OPEN incident was found."
+                                                + "but no active incident was found."
                                 );
                             }
                     );
@@ -187,8 +205,7 @@ public class AlertEventConsumer {
 
     private String generateIncidentNumber() {
 
-        long nextId =
-                incidentRepository.count() + 1;
+        long nextId = incidentRepository.count() + 1;
 
         return String.format(
                 "INC-%06d",

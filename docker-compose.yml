@@ -1,3 +1,4 @@
+
 services:
 
   unix-server:
@@ -6,27 +7,26 @@ services:
       dockerfile: Dockerfile
 
     container_name: incidentops-unix-server
-
     hostname: unix-server-01
 
     ports:
       - "9100:9100"
 
     restart: unless-stopped
+
   db-server:
     build:
       context: ./db-server
       dockerfile: Dockerfile
 
     container_name: incidentops-db-server
-
     hostname: db-server-01
 
     ports:
       - "9101:9100"
 
     restart: unless-stopped
-  
+
   prometheus:
     image: prom/prometheus:latest
 
@@ -45,7 +45,6 @@ services:
 
     restart: unless-stopped
 
-
   alertmanager:
     image: prom/alertmanager:latest
 
@@ -62,12 +61,14 @@ services:
 
     restart: unless-stopped
 
-
   kafka:
     image: apache/kafka:latest
+
     container_name: incidentops-kafka
+
     ports:
       - "9092:9092"
+
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
@@ -89,88 +90,152 @@ services:
 
   alert-service:
     image: incidentops-alert-service:1.0
+
     container_name: incidentops-alert-service
+
     ports:
       - "8080:8080"
+
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       FRONTEND_ORIGIN: http://localhost:5173
+
     depends_on:
       - kafka
+
     restart: unless-stopped
-    
+
   incident-service:
     image: incidentops-incident-service:1.0
+
     container_name: incidentops-incident-service
+
+    # Rebuild only the Incident Service when Java code changes
+    build:
+      context: ./services/incident_service/incident_service
+      dockerfile: Dockerfile
+
     ports:
       - "8081:8081"
+
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+
       DB_URL: "jdbc:postgresql://postgres:5432/incidentops?options=-c%20TimeZone=UTC"
+
       JWT_SECRET: "${JWT_SECRET:?Set JWT_SECRET to the same value used by User Service}"
+
       FRONTEND_ORIGIN: "http://localhost:5173"
+
+      # Spring Boot -> FastAPI AI Agent
+      AI_AGENT_URL: "http://ai-agent:8000"
+
+      # Same secret as INTERNAL_API_KEY in AI Agent .env
+      AI_AGENT_INTERNAL_API_KEY: "${AI_AGENT_INTERNAL_API_KEY:?Set AI_AGENT_INTERNAL_API_KEY}"
+
     depends_on:
       - kafka
       - postgres
+
     restart: unless-stopped
 
   user-service:
     image: incidentops-user-service:1.0
+
     container_name: incidentops-user-service
+
     ports:
       - "8083:8083"
+
     environment:
       DB_URL: "jdbc:postgresql://postgres:5432/incidentops"
+
       JWT_SECRET: "${JWT_SECRET:?MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=}"
+
       ADMIN_USERNAME: "${ADMIN_USERNAME:?admin}"
       ADMIN_PASSWORD: "${ADMIN_PASSWORD:?ChangeMe123!}"
+
       FRONTEND_ORIGIN: "http://localhost:5173"
       AUTH_COOKIE_SECURE: "false"
+
     depends_on:
       - postgres
+
+    restart: unless-stopped
+  
+  ai-agent:
+    build:
+      context: ./services/ai-agent-service
+      dockerfile: Dockerfile
+
+    image: incidentops-ai-agent:1.0
+    container_name: incidentops-ai-agent
+
+    ports:
+      - "8000:8000"
+
+    env_file:
+      - ./services/ai-agent-service/.env
+
+    environment:
+      PROMETHEUS_URL: "http://prometheus:9090"
+
+    depends_on:
+      - prometheus
+
     restart: unless-stopped
 
   frontend:
     image: incidentops-frontend:1.0
+
     container_name: incidentops-frontend
+
     ports:
       - "5173:80"
+
     depends_on:
       - user-service
       - incident-service
       - alert-service
+
     restart: unless-stopped
-  
+
   postgres:
-      image: postgres:17
-      container_name: incidentops-postgres
+    image: postgres:17
 
-      environment:
-        POSTGRES_DB: incidentops
-        POSTGRES_USER: incidentops
-        POSTGRES_PASSWORD: incidentops
+    container_name: incidentops-postgres
 
-      ports:
-        - "5433:5432"
+    environment:
+      POSTGRES_DB: incidentops
+      POSTGRES_USER: incidentops
+      POSTGRES_PASSWORD: incidentops
 
-      volumes:
-        - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
 
-      restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    restart: unless-stopped
 
   cadvisor:
-      image: gcr.io/cadvisor/cadvisor:latest
-      container_name: incidentops-cadvisor
-      ports:
-        - "8082:8080"
-      volumes:
-        - /:/rootfs:ro
-        - /var/run:/var/run:ro
-        - /sys:/sys:ro
-        - /var/lib/docker:/var/lib/docker:ro
-        - /dev/disk:/dev/disk:ro
-      privileged: true
-      restart: unless-stopped
+    image: gcr.io/cadvisor/cadvisor:latest
+
+    container_name: incidentops-cadvisor
+
+    ports:
+      - "8082:8080"
+
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+
+    privileged: true
+
+    restart: unless-stopped
+
 volumes:
-     postgres_data:
-  
+  postgres_data:
